@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendar Cita</title>
+</head>
+<body>
+    <h2>Estas son todas las citas disponibles</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th></th>
+                <th>Fecha disponible</th>
+                <th>Hora disponible</th>
+                <th>Sucursal</th>
+                <th>Doctor</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cita in citas %}
+            {%if cita.disponible %}
+            <tr>
+                <form method="POST" action="{{ url_for('citas') }}">
+                        <input type="hidden" name="cita_id" value="{{ cita.id_cita_disponibles }}">
+                        <button type="submit">Agendar</button>
+                </form>
+                <td>{{ cita.fecha_disponible }}</td>
+                <td>{{ cita.hora_disponible }}</td>
+                <td>{{ cita.sucursal.nombre }}</td>
+                <td>{{ cita.doctor.nombre }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
