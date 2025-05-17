@@ -1,0 +1,117 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-image: url("../img/Farmacia_diseño.jpg");
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+h1{
+    position: relative;
+    display: flex;
+    justify-content: center;
+    font-size: 200%;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    color: cadetblue;
+    border: 2px dashed cadetblue;
+    border-radius: 10px;
+    padding: 2%;
+    width: 50%;
+    left: 25%;
+    top: 1%;
+    text-shadow:
+        -1px -1px 0 black,  
+        1px -1px 0 black,
+        -1px  1px 0 black,
+        1px  1px 0 black;;
+}
+
+.fondo{
+
+    border: 3px solid black;
+    border-radius: 30px;
+    background-color: aquamarine;
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    font-size: medium;
+    flex-direction: column;
+    border: 3px solid black;
+    padding: 5%;
+    width: 80%;
+    height: 100%;
+    gap: 10px;
+    top: 20%;
+    left: 10%;
+}
+
+.register-form {
+    display:flex;
+    font-size: medium;
+    position: relative;
+    justify-content: center;
+    flex-direction: column;
+    border-radius: 30px;
+    padding: 5%;
+    width: 30%;
+    height: 60%;
+    gap: 2px;
+    left: 35%;
+    top: 20%;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    animation: aparecer 2s ease forwards;
+}
+
+.register{
+    position: relative;
+    left: 25%;
+    margin-top: 10px;
+    padding: 7px;
+    width: 50%;
+    border-radius: 10px;
+    padding-left: 5%;
+    padding-right: 5%;
+    font-size: large;
+}
+
+input{
+    padding: 5px;
+    border-radius: 10px;
+    padding-left: 5%;
+    padding-right: 5%;
+    font-size: large;
+}
+
+label{
+    position: relative;
+    display: flex;
+    justify-content: center;
+    font-weight: bold;
+}
+
+
+@keyframes aparecer {
+    0% {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+
+.register:hover {
+    background-color: #45a049;
+    color: white;
+}
