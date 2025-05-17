@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farmacias Alejo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style3.css') }}">
+</head>
+<body>
+
+    <header class="home">
+        <div class="slogan">
+            <h1>Farmacias Alejo</h1><br>
+            <h3> Farmacia y consultorio a tu disposición! </h3>
+        </div>
+
+        <div class="logo">
+            <img src="{{ url_for('static', filename='img/principal_medicina.png') }}" alt="Logo" >
+        </div>
+        <nav class="navegation">
+            <ul class="navbar">
+                <li><a href="{{ url_for('index') }}">Inicio</a></li>
+                <li><a href="">¿Quiénes somos?</a></li>
+                <li><a href="">Productos</a></li>
+                <li><a href="{{url_for('citas')}}">Agendar una cita</a></li>
+                <li><a href="">Tus citas</a></li>
+                <li><a href="">Tus recetas</a></li>
+                <li><a href="">Contacto</a></li>
+                <li class="dropdown">
+                    <a href="#">Mi cuenta</a>
+                    <ul class="dropdown-content">
+                    <li><a href="#">Perfil</a></li>
+                    <li><a href="#">Cambiar contraseña</a></li>
+                    <li><a href="{{ url_for('logout') }}">Cerrar sesión</a></li>
+                    </ul>
+                </li>
+                <li><a href=""></a></li>
+            </ul>
+        </nav>
+
+
+    </header>
+</body>
+</html>
