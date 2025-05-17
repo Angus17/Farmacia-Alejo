@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="../static/css/style.css">
+    <link rel="icon" href="../static/icon/medicina.png" type="image/png">
+</head>
+<body>
+    <header class="welcome">
+        <b>Bienvenid@, favor de iniciar sesión</b>
+    </header>
+
+    <form action="{{ url_for('login') }}" method="post" class="isesion">
+        <label for="opcion" id="l0">Tipo de Usuario:</label>
+        <select name="opcion" id="opcion">
+            <option value="Seleccione" id="sel">Seleccione un Usuario</option>
+            <option value="Empleado" id="w0r">Empleado</option>
+            <option value="Usuario" id="p0">Paciente</option>
+        </select>
+        <input type="email"  name="email" id="e0" placeholder="Correo electrónico">
+        <input type="password" name="password" id="pass0" placeholder="Contraseña">
+        <button type="submit" class="login">Iniciar sesion</button>
+
+        <a href="{{ url_for('register') }}" class="register">Registrar una nueva cuenta</a>
+        <a href="{{ url_for('register') }}" class="register">¿Olvidó la contraseña?</a>
+    </form>
+
+    <script>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                alert("{{ message }}");
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    </script>
+
+
+
+</body>
+</html>
