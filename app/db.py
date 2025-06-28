@@ -6,6 +6,77 @@ from datetime import datetime
 
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
+@app.route('/farmacia-alejo/login', methods=['GET', 'POST'])
+def login():
+    
+    """
+    Esta función maneja la ruta de inicio de sesión.
+    Si el método de la solicitud es POST, se procesa el formulario de inicio de sesión.
+    Se verifica si el correo electrónico y la contraseña son correctos.
+    Si son correctos, se genera un token y se redirige a la página principal.
+    Si no son correctos, se muestra un mensaje de error.
+    Si el método es GET, se muestra la página de inicio de sesión.
+    Args:
+        request (Request): La solicitud HTTP que contiene los datos del formulario de inicio de sesión.
+        session (Session): La sesión del usuario actual.
+        serializer (URLSafeTimedSerializer): El serializador para generar y verificar tokens.
+        Usuario (Model): El modelo de usuario de la base de datos.
+        check_password_hash (function): Función para verificar la contraseña hasheada.
+        flash (function): Función para mostrar mensajes flash al usuario.
+        redirect (function): Función para redirigir a otra ruta.
+        url_for (function): Función para generar URLs para las rutas de la aplicación.
+        render_template (function): Función para renderizar plantillas HTML.
+
+    Returns:
+        Response: redirect(url_for('pagina_principal'))
+        template (str): index.html
+        Response: redirect(url_for('login'))
+    """
+    
+    
+    if request.method == 'POST':
+        tipo_usuario = request.form['opcion']
+        email = request.form['email']
+        password_ingresada = request.form['password']
+
+        usuario = Usuario.query.filter_by(email=email).first()
+        
+        if not usuario:
+            flash('El correo no está registrado', 'error')
+            return redirect(url_for('login'))
+        
+        if tipo_usuario == 'Seleccione':
+            flash('Debe seleccionar el tipo de usuario', 'error')
+            return redirect(url_for('login'))
+
+        if usuario and check_password_hash(usuario.contrasenia, password_ingresada):
+            tipo_usuario_bd = usuario.rol.tipo_rol if usuario.rol else 'Desconocido'
+
+            if tipo_usuario != tipo_usuario_bd:
+                flash('Tipo de usuario incorrecto para este correo', 'error')
+                return redirect(url_for('login'))
+            
+            token_random = secrets.token_urlsafe(32)
+
+            token_final = serializer.dumps(token_random, salt='token-salt')
+
+            session['id_usuario'] = usuario.id_usuario
+            session['nombre_usuario'] = usuario.nombre_usuario
+            session['tipo_usuario'] = tipo_usuario_bd
+            session['email'] = usuario.email
+            session['token'] = token_random
+
+            return redirect(url_for('pagina_principal', usuario=usuario.nombre_usuario, token=token_final))
+        elif not usuario or not check_password_hash(usuario.contrasenia, password_ingresada):
+            flash('Correo o contraseña incorrectos', 'error')
+            return redirect(url_for('login'))
+        else:
+            flash('Error al iniciar sesión', 'error')
+            return redirect(url_for('login'))
+
+    return render_template('index.html')
+
+
 @app.route('/')
 def index():
     """
@@ -14,8 +85,8 @@ def index():
     Returns:
         template (str): index.html
     """
-    return render_template('index.html')
-    
+    return redirect(url_for('login'))
+
 @app.route('/farmacia-alejo/home', methods=['GET', 'POST'])
 def pagina_principal():
     
@@ -123,7 +194,7 @@ def register():
             return redirect(url_for('register'))
 
         # Se crea el registro del nuevo paciente en el sistema (Simulando un trigger)
-        nuevo_paciente = Paciente(nombre=primer_nombre, segundo_nombre=segundo_nombre, apellido=primer_apellido, segundo_apellido=segundo_apellido, edad=None, direccion=None)
+        nuevo_paciente = Paciente(nombre=primer_nombre, segundo_nombre=segundo_nombre, apellido=primer_apellido, segundo_apellido=segundo_apellido, edad=None, calle='Sin especificar', numero_exterior='0', numero_interior=None, codigo_postal='0', nombre_colonia= 'Sin especificar', numero_telefono='Sin especificar', numero_celular=None, correo_electronico=None, id_municipio=None, id_tipo_colonia=None)
         db.session.add(nuevo_paciente)
         db.session.commit()
 
@@ -137,76 +208,6 @@ def register():
         return redirect(url_for('login'))
 
     return render_template('register.html')
-
-@app.route('/farmacia-alejo/login', methods=['GET', 'POST'])
-def login():
-    
-    """
-    Esta función maneja la ruta de inicio de sesión.
-    Si el método de la solicitud es POST, se procesa el formulario de inicio de sesión.
-    Se verifica si el correo electrónico y la contraseña son correctos.
-    Si son correctos, se genera un token y se redirige a la página principal.
-    Si no son correctos, se muestra un mensaje de error.
-    Si el método es GET, se muestra la página de inicio de sesión.
-    Args:
-        request (Request): La solicitud HTTP que contiene los datos del formulario de inicio de sesión.
-        session (Session): La sesión del usuario actual.
-        serializer (URLSafeTimedSerializer): El serializador para generar y verificar tokens.
-        Usuario (Model): El modelo de usuario de la base de datos.
-        check_password_hash (function): Función para verificar la contraseña hasheada.
-        flash (function): Función para mostrar mensajes flash al usuario.
-        redirect (function): Función para redirigir a otra ruta.
-        url_for (function): Función para generar URLs para las rutas de la aplicación.
-        render_template (function): Función para renderizar plantillas HTML.
-
-    Returns:
-        Response: redirect(url_for('pagina_principal'))
-        template (str): index.html
-        Response: redirect(url_for('login'))
-    """
-    
-    
-    if request.method == 'POST':
-        tipo_usuario = request.form['opcion']
-        email = request.form['email']
-        password_ingresada = request.form['password']
-
-        usuario = Usuario.query.filter_by(email=email).first()
-        
-        if not usuario:
-            flash('El correo no está registrado', 'error')
-            return redirect(url_for('login'))
-        
-        if tipo_usuario == 'Seleccione':
-            flash('Debe seleccionar el tipo de usuario', 'error')
-            return redirect(url_for('login'))
-
-        if usuario and check_password_hash(usuario.contrasenia, password_ingresada):
-            tipo_usuario_bd = usuario.rol.tipo_rol if usuario.rol else 'Desconocido'
-
-            if tipo_usuario != tipo_usuario_bd:
-                flash('Tipo de usuario incorrecto para este correo', 'error')
-                return redirect(url_for('login'))
-            
-            token_random = secrets.token_urlsafe(32)
-
-            token_final = serializer.dumps(token_random, salt='token-salt')
-
-            session['id_usuario'] = usuario.id_usuario
-            session['nombre_usuario'] = usuario.nombre_usuario
-            session['tipo_usuario'] = tipo_usuario_bd
-            session['email'] = usuario.email
-            session['token'] = token_random
-
-            return redirect(url_for('pagina_principal', usuario=usuario.nombre_usuario, token=token_final))
-        elif not usuario or not check_password_hash(usuario.contrasenia, password_ingresada):
-            flash('Correo o contraseña incorrectos', 'error')
-            return redirect(url_for('login'))
-        else:
-            flash('Error al iniciar sesión', 'error')
-            return redirect(url_for('login'))
-
-    return render_template('index.html')
 
 
 @app.route('/farmacia-alejo/citas', methods=['GET', 'POST'])
