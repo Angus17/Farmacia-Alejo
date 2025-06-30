@@ -3,6 +3,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from entities import *
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
@@ -127,6 +130,19 @@ def pagina_principal():
     except BadSignature:
         flash('Token inválido.', 'error')
         return redirect(url_for('login'))
+    
+@app.route('/reset_password/<token>')
+def reset_password(token):
+    try:
+        email = serializer.loads(token, salt='token-salt', max_age=3600)
+
+        return render_template('reset_password.html', email=email)
+    except SignatureExpired:
+        flash('El enlace ha expirado.', 'error')
+    except BadSignature:
+        flash('Enlace inválido.', 'error')
+    return redirect(url_for('login'))
+
 
 @app.route('/farmacia-alejo/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -139,7 +155,55 @@ def forgot_password():
         Response: redirect(url_for('login'))
         template (str): forgot_password.html
     """
-    pass
+    if request.method == 'POST':
+        email_emisor = 'diegoxalejo12yu@gmail.com'
+        password_emisor = 'preparatoria15madero'
+        
+        email = request.form['email']
+        usuario = Usuario.query.filter_by(email=email).first()
+
+        if not usuario:
+            flash('El correo no está registrado', 'error')
+            return redirect(url_for('forgot_password'))
+
+        # Configura el serializer
+        serializer_email = URLSafeTimedSerializer('tu-clave-secreta')
+
+        # Genera token
+        token = serializer_email.dumps(email, salt='token-salt')
+
+        reset_url = url_for('reset_password', token=token, _external=True)
+        
+        mensaje = MIMEMultipart()
+        mensaje['From'] = email_emisor
+        mensaje['To'] = email
+        mensaje['Subject'] = 'Recuperación de contraseña - Farmacia Alejo'
+        
+        cuerpo = f"""
+        Hola {usuario.nombre_usuario},
+        Hemos recibido una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace para
+        restablecer tu contraseña:
+        {reset_url}
+        
+        Si no solicitaste este cambio, ignora este mensaje.
+        Gracias,
+        El equipo de Farmacia Alejo
+
+        """
+        mensaje.attach(MIMEText(cuerpo, 'plain'))
+        try:
+            with smtplib.SMTP('smtp.gmail.com', 587) as servidor:
+                servidor.starttls()
+                servidor.login(email_emisor, password_emisor)
+                servidor.sendmail(email_emisor, email, mensaje.as_string())
+        except Exception as e:
+            flash(f'Error al enviar el correo: {str(e)}', 'error')
+            return redirect(url_for('forgot_password'))
+        finally:
+            flash('Se ha enviado un enlace de restablecimiento de contraseña a tu correo.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('password-recover.html')
 
 @app.route('/farmacia-alejo/register', methods=['GET', 'POST'])
 def register():
