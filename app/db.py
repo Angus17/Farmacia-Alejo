@@ -268,12 +268,13 @@ def register():
 
     return render_template('register.html')
 
+motivo_cita = ""
 
 @app.route('/farmacia-alejo/citas', methods=['GET', 'POST'])
 def citas():
     mostrar_citas = False
     citas = []
-    motivo_cita = ""
+    global motivo_cita
 
     if request.method == 'POST':
         # Si el usuario está buscando citas
@@ -290,10 +291,9 @@ def citas():
 
         # Si el usuario ya eligió una cita para agendar
         elif 'agendar_cita' in request.form:
-            motivo_cita = request.form['motivo']
             cita_id = request.form['cita_id']
 
-            consulta = CitasDisponibles.query.filter_by(id_cita=cita_id, disponible=True).first()
+            consulta = CitasDisponibles.query.filter_by(id_cita_disponibles=cita_id, disponible=True).first()
             if not consulta:
                 flash('La cita ya no está disponible.', 'error')
                 return redirect(url_for('citas'))
@@ -309,7 +309,7 @@ def citas():
 
             nueva_cita = Cita(
                 id_paciente=paciente.id_paciente,
-                id_cita=consulta.id_cita,
+                id_cita=consulta.id_cita_disponibles,
                 fecha_movimiento=datetime.now(),
                 finalizada=False
             )

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/agendar.css') }}">
     <title>Agendar Cita</title>
 </head>
 <body>
@@ -34,7 +35,7 @@
                 {% for cita in citas %}
                 {%if cita.disponible %}
                 <tr>
-                    <form method="POST" action="{{ url_for('citas') }}">
+                    <form id="c87" method="POST" action="{{ url_for('citas') }}">
                             <input type="hidden" name="cita_id" value="{{ cita.id_cita_disponibles }}">
                             <button type="submit" name="agendar_cita">Agendar</button>
                     </form>

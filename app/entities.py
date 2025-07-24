@@ -96,6 +96,7 @@ class Areas(db.Model):
     
     id_area = db.Column(db.Integer, primary_key=True)
     nombre_area = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
 
 class Rol(db.Model):
     __tablename__ = 'Rol'  # nombre exacto de la tabla en tu base de datos
@@ -283,5 +284,3 @@ class Usuario(db.Model):
     rol = db.relationship('Rol')
     paciente = db.relationship('Paciente')
     empleado = db.relationship('Empleado')
-    
-# A partir de aqui son las vistas de la base de datos
