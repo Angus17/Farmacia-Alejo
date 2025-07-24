@@ -9,73 +9,57 @@ from email.mime.multipart import MIMEMultipart
 
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
+
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # No accesible por JavaScript
+app.config['SESSION_COOKIE_SECURE'] = True    # Solo por HTTPS
+
 @app.route('/farmacia-alejo/login', methods=['GET', 'POST'])
 def login():
-    
-    """
-    Esta función maneja la ruta de inicio de sesión.
-    Si el método de la solicitud es POST, se procesa el formulario de inicio de sesión.
-    Se verifica si el correo electrónico y la contraseña son correctos.
-    Si son correctos, se genera un token y se redirige a la página principal.
-    Si no son correctos, se muestra un mensaje de error.
-    Si el método es GET, se muestra la página de inicio de sesión.
-    Args:
-        request (Request): La solicitud HTTP que contiene los datos del formulario de inicio de sesión.
-        session (Session): La sesión del usuario actual.
-        serializer (URLSafeTimedSerializer): El serializador para generar y verificar tokens.
-        Usuario (Model): El modelo de usuario de la base de datos.
-        check_password_hash (function): Función para verificar la contraseña hasheada.
-        flash (function): Función para mostrar mensajes flash al usuario.
-        redirect (function): Función para redirigir a otra ruta.
-        url_for (function): Función para generar URLs para las rutas de la aplicación.
-        render_template (function): Función para renderizar plantillas HTML.
-
-    Returns:
-        Response: redirect(url_for('pagina_principal'))
-        template (str): index.html
-        Response: redirect(url_for('login'))
-    """
-    
-    
     if request.method == 'POST':
         tipo_usuario = request.form['opcion']
-        email = request.form['email']
+        identificador = request.form['email']  # Puede ser correo, usuario o teléfono
         password_ingresada = request.form['password']
 
-        usuario = Usuario.query.filter_by(email=email).first()
-        
+        # Buscar por email, nombre de usuario o número de teléfono
+        usuario = (
+            Usuario.query.filter_by(email=identificador).first() or
+            Usuario.query.filter_by(nombre_usuario=identificador).first() or
+            Paciente.query.filter_by(numero_telefono=identificador).first()
+        )
+
         if not usuario:
-            flash('El correo no está registrado', 'error')
+            flash('El correo, usuario o teléfono no están registrados', 'error')
             return redirect(url_for('login'))
-        
+
+        # Verificar tipo de usuario
+        tipo_usuario_bd = usuario.rol.tipo_rol if usuario.rol else 'Desconocido'
+
         if tipo_usuario == 'Seleccione':
             flash('Debe seleccionar el tipo de usuario', 'error')
             return redirect(url_for('login'))
 
-        if usuario and check_password_hash(usuario.contrasenia, password_ingresada):
-            tipo_usuario_bd = usuario.rol.tipo_rol if usuario.rol else 'Desconocido'
+        if tipo_usuario != tipo_usuario_bd:
+            flash('Tipo de usuario incorrecto para este acceso', 'error')
+            return redirect(url_for('login'))
 
-            if tipo_usuario != tipo_usuario_bd:
-                flash('Tipo de usuario incorrecto para este correo', 'error')
-                return redirect(url_for('login'))
-            
-            token_random = secrets.token_urlsafe(32)
-
-            token_final = serializer.dumps(token_random, salt='token-salt')
-
-            session['id_usuario'] = usuario.id_usuario
-            session['nombre_usuario'] = usuario.nombre_usuario
-            session['tipo_usuario'] = tipo_usuario_bd
-            session['email'] = usuario.email
-            session['token'] = token_random
-
-            return redirect(url_for('pagina_principal', usuario=usuario.nombre_usuario, token=token_final))
-        elif not usuario or not check_password_hash(usuario.contrasenia, password_ingresada):
+        # Verificar contraseña
+        if not check_password_hash(usuario.contrasenia, password_ingresada):
             flash('Correo o contraseña incorrectos', 'error')
             return redirect(url_for('login'))
-        else:
-            flash('Error al iniciar sesión', 'error')
-            return redirect(url_for('login'))
+
+        # Generar token seguro
+        token_random = secrets.token_urlsafe(32)
+        token_final = serializer.dumps(token_random, salt='token-salt')
+
+        # Guardar en sesión
+        session['id_usuario'] = usuario.id_usuario
+        session['nombre_usuario'] = usuario.nombre_usuario
+        session['email'] = getattr(usuario, 'email', '')  # Paciente podría no tener email
+        session['tipo_usuario'] = tipo_usuario_bd
+        session['token'] = token_random
+        session['token_final'] = token_final
+
+        return redirect(url_for('pagina_principal', usuario=usuario.nombre_usuario))
 
     return render_template('index.html')
 
@@ -104,7 +88,7 @@ def pagina_principal():
         template (str): pagina_principal.html
     """
 
-    token = request.args.get('token')
+    token = session.get('token_final')
     usuario = request.args.get('usuario')
 
     try:
@@ -131,6 +115,8 @@ def pagina_principal():
         flash('Token inválido.', 'error')
         return redirect(url_for('login'))
     
+@app.route('/farmacia-alejo/')
+
 @app.route('/reset_password/<token>')
 def reset_password(token):
     try:
@@ -156,8 +142,8 @@ def forgot_password():
         template (str): forgot_password.html
     """
     if request.method == 'POST':
-        email_emisor = 'diegoxalejo12yu@gmail.com'
-        password_emisor = 'preparatoria15madero'
+        email_emisor = 'dileothefox@gmail.com'
+        password_emisor = 'mdtw njqy ptsd kily'
         
         email = request.form['email']
         usuario = Usuario.query.filter_by(email=email).first()
@@ -235,6 +221,8 @@ def register():
         password = request.form['password']
         confirm_password = request.form['confirm_password']
         
+        telefono_checkbox = request.form.get('telefono')
+        
         # Aqui se obtiene el registro del rol de Paciente
         rol = Rol.query.filter_by(tipo_rol=tipo_usuario).first()
         if not rol:
@@ -248,9 +236,16 @@ def register():
             return redirect(url_for('register'))
 
         # Verifica si el usuario ya existe
-        if Usuario.query.filter_by(email=email).first():
-            flash('El correo ya está registrado')
-            return redirect(url_for('login'))
+        if telefono_checkbox == 'on':
+            if Paciente.query.filter_by(numero_telefono=email).first():
+                flash('El número de teléfono ya está registrado')
+                return redirect(url_for('login'))
+        
+        else: 
+
+            if Usuario.query.filter_by(email=email).first():
+                flash('El correo ya está registrado')
+                return redirect(url_for('login'))
 
         # Verifica si las contraseñas coinciden
         if password != confirm_password:
@@ -258,12 +253,12 @@ def register():
             return redirect(url_for('register'))
 
         # Se crea el registro del nuevo paciente en el sistema (Simulando un trigger)
-        nuevo_paciente = Paciente(nombre=primer_nombre, segundo_nombre=segundo_nombre, apellido=primer_apellido, segundo_apellido=segundo_apellido, edad=None, calle='Sin especificar', numero_exterior='0', numero_interior=None, codigo_postal='0', nombre_colonia= 'Sin especificar', numero_telefono='Sin especificar', numero_celular=None, correo_electronico=None, id_municipio=None, id_tipo_colonia=None)
+        nuevo_paciente = Paciente(nombre=primer_nombre, segundo_nombre=segundo_nombre, apellido=primer_apellido, segundo_apellido=segundo_apellido, edad=None, calle='Sin especificar', numero_exterior='0', numero_interior=None, codigo_postal='0', nombre_colonia= 'Sin especificar',   numero_telefono= email if telefono_checkbox else 'Sin especificar', numero_celular=None, correo_electronico=None, id_municipio=None, id_tipo_colonia=None)
         db.session.add(nuevo_paciente)
         db.session.commit()
 
         # Crea un nuevo usuario
-        nuevo_usuario = Usuario(nombre_usuario=username ,email=email, contrasenia=generate_password_hash(password), id_empleado=None, id_paciente=nuevo_paciente.id_paciente, id_rol=rol.id_rol)
+        nuevo_usuario = Usuario(nombre_usuario=username ,email = email if not telefono_checkbox else 'Sin especificar', contrasenia=generate_password_hash(password), id_empleado=None, id_paciente=nuevo_paciente.id_paciente, id_rol=rol.id_rol)
         db.session.add(nuevo_usuario)
         db.session.commit()
         
@@ -276,50 +271,56 @@ def register():
 
 @app.route('/farmacia-alejo/citas', methods=['GET', 'POST'])
 def citas():
-    """
-    Esta función maneja la ruta de agendar citas.
-    Si el método de la solicitud es POST, se procesa el formulario de agendar cita.
-    Se verifica si la cita ya está reservada y se crea una nueva cita en la base de datos.
-    Si el método es GET, se muestra la lista de citas disponibles.
-    Args:
-        request (Request): La solicitud HTTP que contiene los datos del formulario de agendar cita.
-        session (Session): La sesión del usuario actual.
-        CitasDisponibles (Model): El modelo de citas disponibles de la base de datos.
-        Paciente (Model): El modelo de paciente de la base de datos.
-        Cita (Model): El modelo de cita de la base de datos.
-        db (SQLAlchemy): La instancia de SQLAlchemy para interactuar con la base de datos.
-        flash (function): Función para mostrar mensajes flash al usuario.
-        redirect (function): Función para redirigir a otra ruta.
-        url_for (function): Función para generar URLs para las rutas de la aplicación.
-        render_template (function): Función para renderizar plantillas HTML.
-        datetime (module): Módulo para trabajar con fechas y horas.
-
-    Returns:
-        Response: redirect(url_for('pagina_principal'))
-        template (str): agendar.html
-    """
+    mostrar_citas = False
+    citas = []
+    motivo_cita = ""
 
     if request.method == 'POST':
-        cita_id = request.form['cita_id']
-        
-        consulta = CitasDisponibles.query.filter_by(id_cita=cita_id).first()
-        paciente = Paciente.query.filter_by(id_paciente=session['id_usuario']).first()
+        # Si el usuario está buscando citas
+        if 'mostrar_citas' in request.form:
+            motivo_cita = request.form['motivo']
+            if not motivo_cita.strip():
+                flash('Debe ingresar un motivo para la cita', 'error')
+                return redirect(url_for('citas'))
 
-        # Falta agregar la lógica para evitar citas empalmadas
-        cita_paciente = Cita.query.filter_by(id_paciente=paciente.id_paciente, id_cita=consulta.id_cita).first()
-        
-        consulta.disponible = False
-        db.session.commit()
+            # Mostrar las citas disponibles
+            citas = CitasDisponibles.query.filter_by(disponible=True).all()
+            mostrar_citas = True
+            return render_template('agendar.html', citas=citas, motivo=motivo_cita, mostrar_citas=mostrar_citas)
 
-        nueva_cita = Cita(paciente.id_paciente, consulta.id_cita, fecha_movimiento=datetime.now(), finalizada=False)
-        db.session.add(nueva_cita)
-        db.session.commit()
-        
-        flash('Cita reservada exitosamente', 'success')
-        return redirect(url_for('pagina_principal', usuario=session['nombre_usuario'], token=session['token']))
+        # Si el usuario ya eligió una cita para agendar
+        elif 'agendar_cita' in request.form:
+            motivo_cita = request.form['motivo']
+            cita_id = request.form['cita_id']
 
-    citas = CitasDisponibles.query.all()
-    return render_template('agendar.html', citas=citas)
+            consulta = CitasDisponibles.query.filter_by(id_cita=cita_id, disponible=True).first()
+            if not consulta:
+                flash('La cita ya no está disponible.', 'error')
+                return redirect(url_for('citas'))
+
+            paciente = Paciente.query.filter_by(id_paciente=session['id_usuario']).first()
+            if not paciente:
+                flash('No se encontró el paciente.', 'error')
+                return redirect(url_for('citas'))
+
+            # Registrar la cita
+            consulta.disponible = False
+            db.session.commit()
+
+            nueva_cita = Cita(
+                id_paciente=paciente.id_paciente,
+                id_cita=consulta.id_cita,
+                fecha_movimiento=datetime.now(),
+                finalizada=False
+            )
+            db.session.add(nueva_cita)
+            db.session.commit()
+
+            flash('Cita reservada exitosamente', 'success')
+            return redirect(url_for('pagina_principal', usuario=session['nombre_usuario'], token=session['token']))
+
+    # GET o cualquier otro caso
+    return render_template('agendar.html', citas=citas, mostrar_citas=mostrar_citas, motivo=motivo_cita)
 
 @app.route('/logout')
 def logout():
@@ -337,11 +338,7 @@ def logout():
     """
     
     # Eliminar los datos de la sesión
-    session.pop('id_usuario', None)
-    session.pop('nombre_usuario', None)
-    session.pop('tipo_usuario', None)
-    session.pop('email', None)
-    session.pop('token', None)
+    session.clear()
 
     # Flash para informar al usuario que ha cerrado sesión
     flash('Has cerrado sesión exitosamente.', 'success')

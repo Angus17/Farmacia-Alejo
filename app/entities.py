@@ -15,7 +15,7 @@ app = Flask(__name__)
 
 
 # Aqui se configura la conexión a MySQL
-app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://root:{os.getenv("PASSWDRL")}@trolley.proxy.rlwy.net:30856/farmacia_alejo' #f'mysql+pymysql://root:{os.getenv("PASSWDBD")}@localhost/farmacia_alejo'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://root:{os.getenv("PASSWDBD")}@localhost:3306/farmacia_alejo' #f'mysql+pymysql://root:{os.getenv("PASSWDBD")}@localhost/farmacia_alejo'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['SECRET_KEY'] = secrets.token_hex(16)  # Genera una clave secreta aleatoria
