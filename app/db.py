@@ -3,29 +3,36 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from entities import *
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from datetime import datetime
+import os
+import secrets
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
-
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # No accesible por JavaScript
-app.config['SESSION_COOKIE_SECURE'] = True    # Solo por HTTPS
+# Solo por HTTPS en producción; en desarrollo puede ser HTTP
+app.config['SESSION_COOKIE_SECURE'] = app.config.get('ENV') == 'production'
 
 @app.route('/farmacia-alejo/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        tipo_usuario = request.form['opcion']
-        identificador = request.form['email']  # Puede ser correo, usuario o teléfono
-        password_ingresada = request.form['password']
+        tipo_usuario = request.form.get('opcion', '').strip()
+        identificador = request.form.get('email', '').strip()  # Puede ser correo, usuario o teléfono
+        password_ingresada = request.form.get('password', '')
 
-        # Buscar por email, nombre de usuario o número de teléfono
+        # Buscar por email o nombre de usuario
         usuario = (
             Usuario.query.filter_by(email=identificador).first() or
-            Usuario.query.filter_by(nombre_usuario=identificador).first() or
-            Paciente.query.filter_by(numero_telefono=identificador).first()
+            Usuario.query.filter_by(nombre_usuario=identificador).first()
         )
+
+        # Intentar por teléfono: localizar Paciente y luego su Usuario asociado
+        if not usuario:
+            paciente = Paciente.query.filter_by(numero_telefono=identificador).first()
+            if paciente:
+                usuario = Usuario.query.filter_by(id_paciente=paciente.id_paciente).first()
 
         if not usuario:
             flash('El correo, usuario o teléfono no están registrados', 'error')
@@ -53,13 +60,14 @@ def login():
 
         # Guardar en sesión
         session['id_usuario'] = usuario.id_usuario
+        session['id_paciente'] = getattr(usuario, 'id_paciente', None)
         session['nombre_usuario'] = usuario.nombre_usuario
-        session['email'] = getattr(usuario, 'email', '')  # Paciente podría no tener email
+        session['email'] = getattr(usuario, 'email', '')
         session['tipo_usuario'] = tipo_usuario_bd
         session['token'] = token_random
         session['token_final'] = token_final
 
-        return redirect(url_for('pagina_principal', usuario=usuario.nombre_usuario))
+        return redirect(url_for('pagina_principal'))
 
     return render_template('index.html')
 
@@ -89,7 +97,6 @@ def pagina_principal():
     """
 
     token = session.get('token_final')
-    usuario = request.args.get('usuario')
 
     try:
         usuario_token = serializer.loads(token, salt='token-salt', max_age=3600)
@@ -97,9 +104,6 @@ def pagina_principal():
         if usuario_token != session.get('token'):
             flash('Token no válido para este usuario.', 'error')
             return redirect(url_for('login'))
-
-        # Puedes guardar información en session si deseas mantener sesión activa
-        session['nombre_usuario'] = usuario
 
         return render_template(
             'pagina_principal.html',
@@ -114,8 +118,6 @@ def pagina_principal():
     except BadSignature:
         flash('Token inválido.', 'error')
         return redirect(url_for('login'))
-    
-@app.route('/farmacia-alejo/')
 
 @app.route('/reset_password/<token>')
 def reset_password(token):
@@ -142,21 +144,22 @@ def forgot_password():
         template (str): forgot_password.html
     """
     if request.method == 'POST':
-        email_emisor = 'dileothefox@gmail.com'
-        password_emisor = 'mdtw njqy ptsd kily'
+        email_emisor = os.environ.get('SMTP_USER')
+        password_emisor = os.environ.get('SMTP_PASS')
         
-        email = request.form['email']
+        email = request.form.get('email', '').strip()
         usuario = Usuario.query.filter_by(email=email).first()
 
         if not usuario:
             flash('El correo no está registrado', 'error')
             return redirect(url_for('forgot_password'))
 
-        # Configura el serializer
-        serializer_email = URLSafeTimedSerializer('tu-clave-secreta')
+        if not email_emisor or not password_emisor:
+            flash('Configuración de correo no encontrada en el servidor.', 'error')
+            return redirect(url_for('forgot_password'))
 
-        # Genera token
-        token = serializer_email.dumps(email, salt='token-salt')
+        # Genera token con el serializer global (mismo SECRET_KEY)
+        token = serializer.dumps(email, salt='token-salt')
 
         reset_url = url_for('reset_password', token=token, _external=True)
         
@@ -182,12 +185,11 @@ def forgot_password():
                 servidor.starttls()
                 servidor.login(email_emisor, password_emisor)
                 servidor.sendmail(email_emisor, email, mensaje.as_string())
+            flash('Se ha enviado un enlace de restablecimiento de contraseña a tu correo.', 'success')
+            return redirect(url_for('login'))
         except Exception as e:
             flash(f'Error al enviar el correo: {str(e)}', 'error')
             return redirect(url_for('forgot_password'))
-        finally:
-            flash('Se ha enviado un enlace de restablecimiento de contraseña a tu correo.', 'success')
-        return redirect(url_for('login'))
     
     return render_template('password-recover.html')
 
@@ -268,37 +270,46 @@ def register():
 
     return render_template('register.html')
 
-motivo_cita = ""
-
 @app.route('/farmacia-alejo/citas', methods=['GET', 'POST'])
 def citas():
     mostrar_citas = False
     citas = []
-    global motivo_cita
+    motivo_cita = session.get('motivo_cita', '')
 
     if request.method == 'POST':
         # Si el usuario está buscando citas
         if 'mostrar_citas' in request.form:
-            motivo_cita = request.form['motivo']
-            if not motivo_cita.strip():
+            motivo_cita = request.form.get('motivo', '').strip()
+            if not motivo_cita:
                 flash('Debe ingresar un motivo para la cita', 'error')
                 return redirect(url_for('citas'))
 
-            # Mostrar las citas disponibles
+            # Guardar motivo en sesión y mostrar las citas disponibles
+            session['motivo_cita'] = motivo_cita
             citas = CitasDisponibles.query.filter_by(disponible=True).all()
             mostrar_citas = True
             return render_template('agendar.html', citas=citas, motivo=motivo_cita, mostrar_citas=mostrar_citas)
 
         # Si el usuario ya eligió una cita para agendar
         elif 'agendar_cita' in request.form:
-            cita_id = request.form['cita_id']
+            cita_id = request.form.get('cita_id')
 
             consulta = CitasDisponibles.query.filter_by(id_cita_disponibles=cita_id, disponible=True).first()
             if not consulta:
                 flash('La cita ya no está disponible.', 'error')
                 return redirect(url_for('citas'))
 
-            paciente = Paciente.query.filter_by(id_paciente=session['id_usuario']).first()
+            # Obtener el paciente del usuario en sesión
+            paciente_id = session.get('id_paciente')
+            if not paciente_id:
+                usuario_actual = Usuario.query.filter_by(id_usuario=session.get('id_usuario')).first()
+                paciente_id = getattr(usuario_actual, 'id_paciente', None) if usuario_actual else None
+
+            if not paciente_id:
+                flash('No se encontró el paciente.', 'error')
+                return redirect(url_for('citas'))
+
+            paciente = Paciente.query.filter_by(id_paciente=paciente_id).first()
             if not paciente:
                 flash('No se encontró el paciente.', 'error')
                 return redirect(url_for('citas'))
@@ -316,8 +327,11 @@ def citas():
             db.session.add(nueva_cita)
             db.session.commit()
 
+            # Limpiar motivo de la sesión
+            session.pop('motivo_cita', None)
+
             flash('Cita reservada exitosamente', 'success')
-            return redirect(url_for('pagina_principal', usuario=session['nombre_usuario'], token=session['token']))
+            return redirect(url_for('pagina_principal'))
 
     # GET o cualquier otro caso
     return render_template('agendar.html', citas=citas, mostrar_citas=mostrar_citas, motivo=motivo_cita)
